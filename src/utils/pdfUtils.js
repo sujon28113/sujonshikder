@@ -432,23 +432,103 @@ export async function addPageNumbersToPdf(pdfBuffer, options = {}) {
 }
 
 /**
- * 9. COMPRESS PDF
+ * 9. COMPRESS PDF: Real client-side page downsampling and JPEG re-encoding engine
  */
-export async function compressPdf(pdfBuffer, level = 'recommended') {
-  // Client-side stream optimization and object cleaning
-  const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+export async function compressPdf(pdfBuffer, level = 'recommended', onProgress = null) {
+  const originalSize = pdfBuffer.byteLength;
 
-  // Strip unused metadata
-  pdfDoc.setTitle('');
-  pdfDoc.setAuthor('');
-  pdfDoc.setSubject('');
-  pdfDoc.setKeywords([]);
-  pdfDoc.setProducer('SplitPDF Optimizer');
-  pdfDoc.setCreator('SplitPDF Optimizer');
+  // Profile-based resolution scale and JPEG compression factor
+  let scale = 1.25;
+  let quality = 0.65;
+  if (level === 'extreme') {
+    scale = 1.0;
+    quality = 0.45;
+  } else if (level === 'less') {
+    scale = 1.6;
+    quality = 0.80;
+  }
 
-  // pdf-lib optimizes stream objects when saved with useObjectStreams
-  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
-  return new Blob([pdfBytes], { type: 'application/pdf' });
+  // Load PDF with PDF.js for rendering
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+  const pdf = await loadingTask.promise;
+  const numPages = pdf.numPages;
+
+  // Load original PDF with pdf-lib to get original page dimensions
+  const originalPdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+  const originalPages = originalPdfDoc.getPages();
+
+  // Create new compressed PDF document
+  const compressedPdfDoc = await PDFDocument.create();
+
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    if (onProgress) {
+      onProgress({
+        current: pageNum,
+        total: numPages,
+        percent: Math.round(((pageNum - 1) / numPages) * 100),
+      });
+    }
+
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext('2d');
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const jpegBlob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', quality)
+    );
+    const jpegBuffer = await jpegBlob.arrayBuffer();
+    const embeddedImg = await compressedPdfDoc.embedJpg(jpegBuffer);
+
+    // Get original page bounds
+    const origPage = originalPages[pageNum - 1];
+    const { width: origWidth, height: origHeight } = origPage.getSize();
+
+    const newPage = compressedPdfDoc.addPage([origWidth, origHeight]);
+    newPage.drawImage(embeddedImg, {
+      x: 0,
+      y: 0,
+      width: origWidth,
+      height: origHeight,
+    });
+  }
+
+  if (onProgress) {
+    onProgress({ current: numPages, total: numPages, percent: 100 });
+  }
+
+  const compressedBytes = await compressedPdfDoc.save({ useObjectStreams: true });
+  const compressedSize = compressedBytes.length;
+
+  // If the original PDF was already a tiny pure-text document smaller than rasterized output:
+  // Fall back to clean object-stream re-saving of original so we never inflate small files!
+  let finalBlob;
+  let finalSize;
+  if (compressedSize >= originalSize) {
+    const fallbackBytes = await originalPdfDoc.save({ useObjectStreams: true });
+    finalBlob = new Blob([fallbackBytes], { type: 'application/pdf' });
+    finalSize = fallbackBytes.length;
+  } else {
+    finalBlob = new Blob([compressedBytes], { type: 'application/pdf' });
+    finalSize = compressedSize;
+  }
+
+  const savedBytes = Math.max(0, originalSize - finalSize);
+  const savedPercent = originalSize > 0 ? Math.round((savedBytes / originalSize) * 100) : 0;
+
+  return {
+    blob: finalBlob,
+    originalSize,
+    compressedSize: finalSize,
+    savedBytes,
+    savedPercent,
+    isAlreadyOptimized: finalSize >= originalSize * 0.98,
+  };
 }
 
 /**

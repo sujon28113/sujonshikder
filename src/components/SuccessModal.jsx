@@ -51,8 +51,16 @@ export default function SuccessModal({
             <span>•</span>
             <span className="flex items-center gap-1">
               <Layers className="w-3.5 h-3.5 text-yellow-600" />
-              <strong className="text-gray-800 font-bold">{resultData.pagesCount}</strong> {resultData.pagesCount === 1 ? 'page' : 'pages'} extracted
+              <strong className="text-gray-800 font-bold">{resultData.pagesCount}</strong> {resultData.pagesCount === 1 ? 'page' : 'pages'}
             </span>
+            {resultData.stats && resultData.stats.savedPercent > 0 && (
+              <>
+                <span>•</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                  -{resultData.stats.savedPercent}% Smaller
+                </span>
+              </>
+            )}
           </div>
         </div>
 
