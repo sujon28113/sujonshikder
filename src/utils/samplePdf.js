@@ -162,7 +162,8 @@ export async function generateSamplePdf() {
   }
 
   const pdfBytes = await pdfDoc.save();
-  const buffer = pdfBytes.buffer;
+  // Provide a clean, isolated ArrayBuffer copy
+  const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength);
 
   return {
     buffer,

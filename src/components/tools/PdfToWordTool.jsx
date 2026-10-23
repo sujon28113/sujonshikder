@@ -21,7 +21,7 @@ export default function PdfToWordTool() {
     const selectedFile = files[0];
     try {
       const buffer = await selectedFile.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      const pdfDoc = await PDFDocument.load(buffer.slice(0), { ignoreEncryption: true });
       const totalPages = pdfDoc.getPageCount();
 
       setFile({

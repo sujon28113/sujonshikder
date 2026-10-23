@@ -12,13 +12,21 @@ const pageImageCache = new Map();
  * Gets or creates the cached PDF document from the ArrayBuffer.
  */
 function getPdfDocument(buffer) {
+  if (!buffer || buffer.byteLength === 0) {
+    throw new Error('PDF buffer is empty or detached.');
+  }
   if (cachedBuffer === buffer && cachedPdfPromise) {
     return cachedPdfPromise;
   }
   cachedBuffer = buffer;
   pageImageCache.clear();
   const typedarray = new Uint8Array(buffer.slice(0));
-  cachedPdfPromise = pdfjsLib.getDocument({ data: typedarray }).promise;
+  const loadingTask = pdfjsLib.getDocument({ data: typedarray });
+  cachedPdfPromise = loadingTask.promise.catch((err) => {
+    cachedBuffer = null;
+    cachedPdfPromise = null;
+    throw err;
+  });
   return cachedPdfPromise;
 }
 

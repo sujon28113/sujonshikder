@@ -38,7 +38,7 @@ export default function SplitTool() {
   const handleFileSelect = async (selectedFile) => {
     try {
       const buffer = await selectedFile.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      const pdfDoc = await PDFDocument.load(buffer.slice(0), { ignoreEncryption: true });
       const totalPages = pdfDoc.getPageCount();
 
       const baseName = selectedFile.name.replace(/\.pdf$/i, '');

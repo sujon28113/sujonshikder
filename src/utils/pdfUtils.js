@@ -4,6 +4,38 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } fro
 import * as pdfjsLib from 'pdfjs-dist';
 
 /**
+ * Defensive clone for ArrayBuffers and TypedArray buffers to prevent detachment
+ * across Web Worker boundary (e.g. PDF.js postMessage transfer).
+ */
+export function safeCloneArrayBuffer(bufferOrTypedArray) {
+  if (!bufferOrTypedArray) {
+    throw new Error('Buffer is required.');
+  }
+  if (bufferOrTypedArray instanceof ArrayBuffer) {
+    if (bufferOrTypedArray.byteLength === 0) {
+      throw new Error('Cannot process PDF: ArrayBuffer is detached or empty.');
+    }
+    return bufferOrTypedArray.slice(0);
+  }
+  if (ArrayBuffer.isView(bufferOrTypedArray)) {
+    const { buffer, byteOffset, byteLength } = bufferOrTypedArray;
+    if (buffer.byteLength === 0 || byteLength === 0) {
+      throw new Error('Cannot process PDF: Buffer is detached or empty.');
+    }
+    return buffer.slice(byteOffset, byteOffset + byteLength);
+  }
+  throw new Error('Unsupported buffer format.');
+}
+
+/**
+ * Creates an isolated Uint8Array copy backed by an independent ArrayBuffer.
+ */
+export function safeToUint8Array(bufferOrTypedArray) {
+  const cloned = safeCloneArrayBuffer(bufferOrTypedArray);
+  return new Uint8Array(cloned);
+}
+
+/**
  * Parses page range string (e.g., "1-3, 5, 7-10") into a sorted array of unique 1-based page numbers.
  */
 export function parseRangeString(rangeStr, totalPages = Infinity) {
@@ -103,7 +135,7 @@ export async function mergePdfs(pdfBuffers) {
   const mergedPdf = await PDFDocument.create();
 
   for (const buffer of pdfBuffers) {
-    const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+    const srcDoc = await PDFDocument.load(safeCloneArrayBuffer(buffer), { ignoreEncryption: true });
     const copiedPages = await mergedPdf.copyPages(srcDoc, srcDoc.getPageIndices());
     copiedPages.forEach((page) => mergedPdf.addPage(page));
   }
@@ -116,7 +148,7 @@ export async function mergePdfs(pdfBuffers) {
  * 2. SPLIT PDF: Single PDF extraction
  */
 export async function extractPagesToSinglePdf(sourcePdfBuffer, selectedPages1Based) {
-  const srcDoc = await PDFDocument.load(sourcePdfBuffer, { ignoreEncryption: true });
+  const srcDoc = await PDFDocument.load(safeCloneArrayBuffer(sourcePdfBuffer), { ignoreEncryption: true });
   const newDoc = await PDFDocument.create();
 
   const zeroBasedIndices = selectedPages1Based.map((p) => p - 1);
@@ -132,7 +164,7 @@ export async function extractPagesToSinglePdf(sourcePdfBuffer, selectedPages1Bas
  * SPLIT PDF: Split pages into ZIP
  */
 export async function splitPagesToZip(sourcePdfBuffer, selectedPages1Based, baseName = 'document') {
-  const srcDoc = await PDFDocument.load(sourcePdfBuffer, { ignoreEncryption: true });
+  const srcDoc = await PDFDocument.load(safeCloneArrayBuffer(sourcePdfBuffer), { ignoreEncryption: true });
   const zip = new JSZip();
 
   for (const pageNum of selectedPages1Based) {
@@ -153,7 +185,7 @@ export async function splitPagesToZip(sourcePdfBuffer, selectedPages1Based, base
  * 3. PDF TO WORD (.docx): Extract textual structure and build editable Word file
  */
 export async function convertPdfToWord(pdfBuffer, options = {}) {
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+  const loadingTask = pdfjsLib.getDocument({ data: safeToUint8Array(pdfBuffer) });
   const pdf = await loadingTask.promise;
   const numPages = pdf.numPages;
 
@@ -240,7 +272,7 @@ export async function convertPdfToWord(pdfBuffer, options = {}) {
  */
 export async function organizePdf(sourcePdfBuffer, pagesConfig) {
   // pagesConfig: array of { originalIndex, rotation }
-  const srcDoc = await PDFDocument.load(sourcePdfBuffer, { ignoreEncryption: true });
+  const srcDoc = await PDFDocument.load(safeCloneArrayBuffer(sourcePdfBuffer), { ignoreEncryption: true });
   const newDoc = await PDFDocument.create();
 
   for (const item of pagesConfig) {
@@ -260,7 +292,7 @@ export async function organizePdf(sourcePdfBuffer, pagesConfig) {
  * 5. ROTATE PDF: Rotates all or specific pages
  */
 export async function rotatePdf(sourcePdfBuffer, rotationAngle = 90, selectedPages = null) {
-  const pdfDoc = await PDFDocument.load(sourcePdfBuffer, { ignoreEncryption: true });
+  const pdfDoc = await PDFDocument.load(safeCloneArrayBuffer(sourcePdfBuffer), { ignoreEncryption: true });
   const pages = pdfDoc.getPages();
 
   pages.forEach((page, index) => {
@@ -279,7 +311,7 @@ export async function rotatePdf(sourcePdfBuffer, rotationAngle = 90, selectedPag
  * 6. PDF TO JPG / PNG IMAGES
  */
 export async function pdfToImages(pdfBuffer, format = 'jpg', scale = 1.5, baseName = 'document') {
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+  const loadingTask = pdfjsLib.getDocument({ data: safeToUint8Array(pdfBuffer) });
   const pdf = await loadingTask.promise;
   const numPages = pdf.numPages;
 
@@ -383,7 +415,7 @@ export async function addPageNumbersToPdf(pdfBuffer, options = {}) {
     margin = 30,
   } = options;
 
-  const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+  const pdfDoc = await PDFDocument.load(safeCloneArrayBuffer(pdfBuffer), { ignoreEncryption: true });
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const totalPages = pdfDoc.getPageCount();
 
@@ -435,6 +467,10 @@ export async function addPageNumbersToPdf(pdfBuffer, options = {}) {
  * 9. COMPRESS PDF: Real client-side page downsampling and JPEG re-encoding engine
  */
 export async function compressPdf(pdfBuffer, level = 'recommended', onProgress = null) {
+  if (!pdfBuffer || pdfBuffer.byteLength === 0) {
+    throw new Error('Cannot compress PDF: buffer is empty or detached.');
+  }
+
   const originalSize = pdfBuffer.byteLength;
 
   // Profile-based resolution scale and JPEG compression factor
@@ -448,14 +484,14 @@ export async function compressPdf(pdfBuffer, level = 'recommended', onProgress =
     quality = 0.80;
   }
 
-  // Load PDF with PDF.js for rendering
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+  // Load original PDF with pdf-lib first using safe defensive clone
+  const originalPdfDoc = await PDFDocument.load(safeCloneArrayBuffer(pdfBuffer), { ignoreEncryption: true });
+  const originalPages = originalPdfDoc.getPages();
+
+  // Load PDF with PDF.js for rendering using safe defensive clone
+  const loadingTask = pdfjsLib.getDocument({ data: safeToUint8Array(pdfBuffer) });
   const pdf = await loadingTask.promise;
   const numPages = pdf.numPages;
-
-  // Load original PDF with pdf-lib to get original page dimensions
-  const originalPdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
-  const originalPages = originalPdfDoc.getPages();
 
   // Create new compressed PDF document
   const compressedPdfDoc = await PDFDocument.create();
@@ -535,7 +571,7 @@ export async function compressPdf(pdfBuffer, level = 'recommended', onProgress =
  * 10. EXTRACT TEXT
  */
 export async function extractTextFromPdf(pdfBuffer) {
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+  const loadingTask = pdfjsLib.getDocument({ data: safeToUint8Array(pdfBuffer) });
   const pdf = await loadingTask.promise;
   const numPages = pdf.numPages;
 
