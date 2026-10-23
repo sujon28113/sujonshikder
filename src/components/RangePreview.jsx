@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Layers, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowRight, Layers, FileText, CheckCircle2 } from 'lucide-react';
 import { renderPageThumbnail } from '../utils/pdfRenderer';
 
-function BoundaryCard({ label, pageNum, pdfBuffer, badgeColor = 'indigo' }) {
+function BoundaryCard({ label, pageNum, pdfBuffer }) {
   const canvasRef = useRef(null);
   const [isRendered, setIsRendered] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -33,26 +33,20 @@ function BoundaryCard({ label, pageNum, pdfBuffer, badgeColor = 'indigo' }) {
     };
   }, [pdfBuffer, pageNum]);
 
-  const badgeStyles = {
-    indigo: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
-    violet: 'bg-violet-500/10 text-violet-300 border-violet-500/20',
-    emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-  }[badgeColor] || 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20';
-
   return (
     <div className="flex flex-col items-center flex-1 max-w-[280px] w-full">
       {/* Label Badge */}
       <div className="flex items-center justify-between w-full px-2 mb-2.5">
-        <span className={`text-[11px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border ${badgeStyles}`}>
+        <span className="text-[11px] font-bold tracking-wider uppercase px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">
           {label}
         </span>
-        <span className="text-xs font-mono font-bold text-white bg-white/5 px-2 py-0.5 rounded-lg border border-white/10">
+        <span className="text-xs font-mono font-bold text-gray-700 bg-white px-2.5 py-0.5 rounded-lg border border-gray-200 shadow-xs">
           Page {pageNum}
         </span>
       </div>
 
       {/* Canvas Card */}
-      <div className="relative w-full aspect-[1/1.414] rounded-2xl overflow-hidden bg-[#07090e] border border-white/10 shadow-2xl flex items-center justify-center p-1 group hover:border-indigo-500/40 transition-all duration-300">
+      <div className="relative w-full aspect-[1/1.414] rounded-2xl overflow-hidden bg-white border-2 border-gray-200 shadow-md flex items-center justify-center p-1 group hover:border-yellow-400 hover:shadow-xl transition-all duration-300">
         <canvas
           ref={canvasRef}
           className={`w-full h-full object-contain rounded-xl transition-opacity duration-300 ${
@@ -62,21 +56,18 @@ function BoundaryCard({ label, pageNum, pdfBuffer, badgeColor = 'indigo' }) {
 
         {/* Placeholder / Shimmer while loading */}
         {(!isRendered || hasError) && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-900/60">
-            <div className="w-full space-y-2.5 opacity-30 animate-pulse">
-              <div className="h-3.5 bg-slate-400 rounded w-1/2 mx-auto"></div>
-              <div className="h-2 bg-slate-500 rounded w-4/5 mx-auto"></div>
-              <div className="h-2 bg-slate-500 rounded w-2/3 mx-auto"></div>
-              <div className="h-2 bg-slate-500 rounded w-3/4 mx-auto"></div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-gray-50">
+            <div className="w-full space-y-2.5 opacity-40 animate-pulse">
+              <div className="h-3.5 bg-gray-300 rounded w-1/2 mx-auto"></div>
+              <div className="h-2 bg-gray-300 rounded w-4/5 mx-auto"></div>
+              <div className="h-2 bg-gray-300 rounded w-2/3 mx-auto"></div>
+              <div className="h-2 bg-gray-300 rounded w-3/4 mx-auto"></div>
             </div>
-            <span className="text-xs font-mono font-bold text-slate-400 mt-4">
+            <span className="text-xs font-mono font-bold text-gray-400 mt-4">
               Page {pageNum}
             </span>
           </div>
         )}
-
-        {/* Ambient border glow */}
-        <div className="absolute inset-0 rounded-2xl border border-indigo-400/10 pointer-events-none group-hover:border-indigo-400/30 transition-colors"></div>
       </div>
     </div>
   );
@@ -89,25 +80,25 @@ export default function RangePreview({ selectedPages, pdfBuffer, totalPages }) {
   const isSinglePage = hasPages && firstPage === lastPage;
 
   return (
-    <div className="mt-8 rounded-3xl bg-[#0b0f1c]/90 border border-white/[0.07] p-6 sm:p-8 shadow-xl shadow-black/40 backdrop-blur-xl">
+    <div className="mt-8 rounded-3xl bg-gray-50/70 border border-gray-200/80 p-6 sm:p-8 shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between mb-8 pb-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+          <div className="w-9 h-9 rounded-xl bg-yellow-400 text-[#111827] flex items-center justify-center shadow-md shadow-yellow-400/20">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white tracking-tight">
+            <h3 className="text-base font-heading font-bold text-[#111827] tracking-tight">
               Range Boundary Preview
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-gray-500">
               Showing first and last page of the selected split range
             </p>
           </div>
         </div>
 
         {hasPages && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>{selectedPages.length} {selectedPages.length === 1 ? 'page' : 'pages'}</span>
           </div>
@@ -116,8 +107,8 @@ export default function RangePreview({ selectedPages, pdfBuffer, totalPages }) {
 
       {/* Preview Section */}
       {!hasPages ? (
-        <div className="py-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
-          <FileText className="w-8 h-8 text-slate-600 animate-pulse" />
+        <div className="py-12 text-center text-gray-400 flex flex-col items-center justify-center gap-2">
+          <FileText className="w-8 h-8 text-gray-300 animate-pulse" />
           <p className="text-sm">Enter a valid page range above to preview boundaries</p>
         </div>
       ) : isSinglePage ? (
@@ -127,7 +118,6 @@ export default function RangePreview({ selectedPages, pdfBuffer, totalPages }) {
             label="Single Page"
             pageNum={firstPage}
             pdfBuffer={pdfBuffer}
-            badgeColor="emerald"
           />
         </div>
       ) : (
@@ -138,24 +128,23 @@ export default function RangePreview({ selectedPages, pdfBuffer, totalPages }) {
             label="First Page"
             pageNum={firstPage}
             pdfBuffer={pdfBuffer}
-            badgeColor="indigo"
           />
 
           {/* Flow Connector in Middle */}
           <div className="flex flex-col items-center justify-center gap-2 px-2 py-4">
-            <div className="hidden sm:flex items-center gap-2 text-indigo-400">
-              <div className="w-8 h-0.5 bg-gradient-to-r from-transparent via-indigo-500 to-indigo-400"></div>
-              <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-300 shadow-lg shadow-indigo-500/20">
+            <div className="hidden sm:flex items-center gap-2 text-yellow-600">
+              <div className="w-8 h-0.5 bg-gradient-to-r from-transparent via-yellow-400 to-yellow-500"></div>
+              <div className="w-10 h-10 rounded-2xl bg-yellow-400 text-[#111827] flex items-center justify-center shadow-md shadow-yellow-400/25">
                 <ArrowRight className="w-5 h-5 animate-pulse" />
               </div>
-              <div className="w-8 h-0.5 bg-gradient-to-r from-indigo-400 via-indigo-500 to-transparent"></div>
+              <div className="w-8 h-0.5 bg-gradient-to-r from-yellow-500 via-yellow-400 to-transparent"></div>
             </div>
 
-            <div className="px-3.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-center">
-              <span className="text-xs font-mono font-semibold text-slate-300 block">
+            <div className="px-4 py-1.5 rounded-full bg-white border border-gray-200 text-center shadow-xs">
+              <span className="text-xs font-mono font-bold text-gray-800 block">
                 {selectedPages.length} Pages Total
               </span>
-              <span className="text-[10px] text-slate-500 block">
+              <span className="text-[10px] text-gray-500 block">
                 p. {firstPage} → p. {lastPage}
               </span>
             </div>
@@ -166,7 +155,6 @@ export default function RangePreview({ selectedPages, pdfBuffer, totalPages }) {
             label="Last Page"
             pageNum={lastPage}
             pdfBuffer={pdfBuffer}
-            badgeColor="violet"
           />
         </div>
       )}
